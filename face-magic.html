@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Face Paint ✨</title>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(#ffe6f0, #ffcce6);
+  font-family: 'Arial', sans-serif;
+}
+
+#video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0.15;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+#message {
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  text-align: center;
+  font-size: 20px;
+  color: #ff5fa2;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<video id="video" autoplay muted></video>
+<canvas id="draw"></canvas>
+<div id="message">Move your face to paint ✨</div>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("draw");
+const ctx = canvas.getContext("2d");
+const msg = document.getElementById("message");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let color = "#ff69b4";
+
+// Load models
+Promise.all([
+  faceapi.nets.tinyFaceDetector.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"),
+  faceapi.nets.faceLandmark68Net.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights")
+]).then(startVideo);
+
+function startVideo() {
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => video.srcObject = stream);
+}
+
+setInterval(async () => {
+  const detections = await faceapi
+    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks();
+
+  if (!detections) return;
+
+  const nose = detections.landmarks.getNose()[3];
+  const leftEye = detections.landmarks.getLeftEye();
+  const rightEye = detections.landmarks.getRightEye();
+
+  const x = nose.x * (canvas.width / video.videoWidth);
+  const y = nose.y * (canvas.height / video.videoHeight);
+
+  // Draw brush
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Smile detection (simple)
+  const mouth = detections.landmarks.getMouth();
+  const smileWidth = Math.abs(mouth[6].x - mouth[0].x);
+
+  if (smileWidth > 40) {
+    color = `hsl(${Math.random() * 360}, 80%, 70%)`;
+    msg.innerText = "That smile changed the color 💖";
+  }
+
+  // Blink detection (rough)
+  const eyeOpen =
+    (leftEye[1].y - leftEye[5].y) +
+    (rightEye[1].y - rightEye[5].y);
+
+  if (eyeOpen < 5) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    msg.innerText = "Canvas cleared ✨";
+  }
+
+}, 120);
+</script>
+
+</body>
+</html>
